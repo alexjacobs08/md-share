@@ -1,0 +1,851 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>md.share - Instant Markdown Sharing</title>
+  <meta name="description" content="Share markdown instantly via URL. No signup, no storage, just paste and share.">
+
+  <!-- Marked.js for markdown rendering -->
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+
+  <!-- LZ-String for compression -->
+  <script src="https://cdn.jsdelivr.net/npm/lz-string@1.5.0/libs/lz-string.min.js"></script>
+
+  <!-- Highlight.js for syntax highlighting -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/styles/github-dark.min.css" id="hljs-theme">
+  <script src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/highlight.min.js"></script>
+
+  <style>
+    :root {
+      --bg-primary: #0d1117;
+      --bg-secondary: #161b22;
+      --bg-tertiary: #21262d;
+      --text-primary: #e6edf3;
+      --text-secondary: #8b949e;
+      --border-color: #30363d;
+      --accent: #58a6ff;
+      --accent-hover: #79b8ff;
+      --success: #3fb950;
+      --warning: #d29922;
+      --danger: #f85149;
+    }
+
+    .light-mode {
+      --bg-primary: #ffffff;
+      --bg-secondary: #f6f8fa;
+      --bg-tertiary: #eaeef2;
+      --text-primary: #1f2328;
+      --text-secondary: #656d76;
+      --border-color: #d0d7de;
+      --accent: #0969da;
+      --accent-hover: #0550ae;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans', Helvetica, Arial, sans-serif;
+      background: var(--bg-primary);
+      color: var(--text-primary);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* Header */
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 20px;
+      background: var(--bg-secondary);
+      border-bottom: 1px solid var(--border-color);
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+
+    .logo {
+      font-size: 1.25rem;
+      font-weight: 600;
+      color: var(--text-primary);
+      text-decoration: none;
+    }
+
+    .logo span {
+      color: var(--accent);
+    }
+
+    .header-actions {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+
+    /* Buttons */
+    button {
+      padding: 8px 16px;
+      border-radius: 6px;
+      border: 1px solid var(--border-color);
+      background: var(--bg-tertiary);
+      color: var(--text-primary);
+      font-size: 14px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.15s ease;
+    }
+
+    button:hover {
+      background: var(--border-color);
+    }
+
+    button.primary {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: #fff;
+    }
+
+    button.primary:hover {
+      background: var(--accent-hover);
+      border-color: var(--accent-hover);
+    }
+
+    button:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    /* Main container */
+    main {
+      display: flex;
+      flex: 1;
+      overflow: hidden;
+    }
+
+    .pane {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+    }
+
+    .pane-header {
+      padding: 10px 16px;
+      background: var(--bg-secondary);
+      border-bottom: 1px solid var(--border-color);
+      font-size: 12px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: var(--text-secondary);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .editor-pane {
+      border-right: 1px solid var(--border-color);
+    }
+
+    /* Editor */
+    #editor {
+      flex: 1;
+      width: 100%;
+      padding: 16px;
+      background: var(--bg-primary);
+      color: var(--text-primary);
+      border: none;
+      resize: none;
+      font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+      font-size: 14px;
+      line-height: 1.6;
+      outline: none;
+    }
+
+    #editor::placeholder {
+      color: var(--text-secondary);
+    }
+
+    /* Preview */
+    #preview {
+      flex: 1;
+      padding: 16px 24px;
+      overflow-y: auto;
+      background: var(--bg-primary);
+    }
+
+    /* Markdown styles */
+    #preview h1, #preview h2, #preview h3, #preview h4, #preview h5, #preview h6 {
+      margin-top: 24px;
+      margin-bottom: 16px;
+      font-weight: 600;
+      line-height: 1.25;
+    }
+
+    #preview h1 { font-size: 2em; padding-bottom: 0.3em; border-bottom: 1px solid var(--border-color); }
+    #preview h2 { font-size: 1.5em; padding-bottom: 0.3em; border-bottom: 1px solid var(--border-color); }
+    #preview h3 { font-size: 1.25em; }
+    #preview h4 { font-size: 1em; }
+
+    #preview p {
+      margin-bottom: 16px;
+      line-height: 1.6;
+    }
+
+    #preview a {
+      color: var(--accent);
+      text-decoration: none;
+    }
+
+    #preview a:hover {
+      text-decoration: underline;
+    }
+
+    #preview code {
+      padding: 0.2em 0.4em;
+      background: var(--bg-tertiary);
+      border-radius: 4px;
+      font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+      font-size: 85%;
+    }
+
+    #preview pre {
+      margin-bottom: 16px;
+      padding: 16px;
+      background: var(--bg-secondary);
+      border-radius: 6px;
+      overflow-x: auto;
+    }
+
+    #preview pre code {
+      padding: 0;
+      background: transparent;
+      font-size: 14px;
+      line-height: 1.5;
+    }
+
+    #preview blockquote {
+      margin-bottom: 16px;
+      padding: 0 16px;
+      border-left: 4px solid var(--border-color);
+      color: var(--text-secondary);
+    }
+
+    #preview ul, #preview ol {
+      margin-bottom: 16px;
+      padding-left: 2em;
+    }
+
+    #preview li {
+      margin-bottom: 4px;
+    }
+
+    #preview table {
+      width: 100%;
+      margin-bottom: 16px;
+      border-collapse: collapse;
+    }
+
+    #preview th, #preview td {
+      padding: 8px 12px;
+      border: 1px solid var(--border-color);
+    }
+
+    #preview th {
+      background: var(--bg-secondary);
+      font-weight: 600;
+    }
+
+    #preview img {
+      max-width: 100%;
+      height: auto;
+      border-radius: 6px;
+    }
+
+    #preview hr {
+      margin: 24px 0;
+      border: none;
+      border-top: 1px solid var(--border-color);
+    }
+
+    /* Status bar */
+    .status-bar {
+      padding: 8px 16px;
+      background: var(--bg-secondary);
+      border-top: 1px solid var(--border-color);
+      font-size: 12px;
+      color: var(--text-secondary);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .url-length {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .url-length-bar {
+      width: 100px;
+      height: 4px;
+      background: var(--bg-tertiary);
+      border-radius: 2px;
+      overflow: hidden;
+    }
+
+    .url-length-fill {
+      height: 100%;
+      background: var(--success);
+      transition: all 0.2s ease;
+    }
+
+    .url-length-fill.warning {
+      background: var(--warning);
+    }
+
+    .url-length-fill.danger {
+      background: var(--danger);
+    }
+
+    /* Toast notifications */
+    .toast {
+      position: fixed;
+      bottom: 20px;
+      left: 50%;
+      transform: translateX(-50%) translateY(100px);
+      padding: 12px 20px;
+      background: var(--bg-tertiary);
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      font-size: 14px;
+      opacity: 0;
+      transition: all 0.3s ease;
+      z-index: 1000;
+    }
+
+    .toast.show {
+      transform: translateX(-50%) translateY(0);
+      opacity: 1;
+    }
+
+    .toast.success {
+      border-color: var(--success);
+    }
+
+    .toast.error {
+      border-color: var(--danger);
+    }
+
+    /* Modal */
+    .modal-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 0, 0.5);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+      opacity: 0;
+      visibility: hidden;
+      transition: all 0.2s ease;
+    }
+
+    .modal-overlay.show {
+      opacity: 1;
+      visibility: visible;
+    }
+
+    .modal {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      padding: 24px;
+      max-width: 500px;
+      width: 90%;
+      transform: scale(0.95);
+      transition: all 0.2s ease;
+    }
+
+    .modal-overlay.show .modal {
+      transform: scale(1);
+    }
+
+    .modal h2 {
+      margin-bottom: 16px;
+      font-size: 1.25rem;
+    }
+
+    .modal input {
+      width: 100%;
+      padding: 10px 12px;
+      background: var(--bg-primary);
+      border: 1px solid var(--border-color);
+      border-radius: 6px;
+      color: var(--text-primary);
+      font-size: 14px;
+      margin-bottom: 16px;
+    }
+
+    .modal input:focus {
+      outline: none;
+      border-color: var(--accent);
+    }
+
+    .modal-actions {
+      display: flex;
+      gap: 8px;
+      justify-content: flex-end;
+    }
+
+    /* View mode (read-only) */
+    .view-mode .editor-pane {
+      display: none;
+    }
+
+    .view-mode #preview {
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 32px;
+    }
+
+    /* Responsive */
+    @media (max-width: 768px) {
+      main {
+        flex-direction: column;
+      }
+
+      .editor-pane {
+        border-right: none;
+        border-bottom: 1px solid var(--border-color);
+        max-height: 40vh;
+      }
+
+      .view-mode .preview-pane {
+        max-height: none;
+      }
+
+      header {
+        padding: 10px 12px;
+      }
+
+      .header-actions button span.btn-text {
+        display: none;
+      }
+    }
+
+    /* Theme toggle */
+    .theme-toggle {
+      background: transparent;
+      border: none;
+      padding: 8px;
+      font-size: 18px;
+    }
+
+    /* Loading spinner */
+    .spinner {
+      width: 14px;
+      height: 14px;
+      border: 2px solid transparent;
+      border-top-color: currentColor;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    /* Empty state */
+    .empty-state {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100%;
+      color: var(--text-secondary);
+      text-align: center;
+      padding: 40px;
+    }
+
+    .empty-state h2 {
+      margin-bottom: 8px;
+      color: var(--text-primary);
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <a href="#" class="logo" onclick="clearEditor()">md<span>.share</span></a>
+    <div class="header-actions">
+      <button onclick="copyUrl()" id="copy-btn">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M0 6.75C0 5.784.784 5 1.75 5h1.5a.75.75 0 0 1 0 1.5h-1.5a.25.25 0 0 0-.25.25v7.5c0 .138.112.25.25.25h7.5a.25.25 0 0 0 .25-.25v-1.5a.75.75 0 0 1 1.5 0v1.5A1.75 1.75 0 0 1 9.25 16h-7.5A1.75 1.75 0 0 1 0 14.25Z"/><path d="M5 1.75C5 .784 5.784 0 6.75 0h7.5C15.216 0 16 .784 16 1.75v7.5A1.75 1.75 0 0 1 14.25 11h-7.5A1.75 1.75 0 0 1 5 9.25Zm1.75-.25a.25.25 0 0 0-.25.25v7.5c0 .138.112.25.25.25h7.5a.25.25 0 0 0 .25-.25v-7.5a.25.25 0 0 0-.25-.25Z"/></svg>
+        <span class="btn-text">Copy URL</span>
+      </button>
+      <button onclick="shortenUrl()" id="shorten-btn">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M4 9h1v1H4c-1.5 0-3-1.69-3-3.5S2.55 3 4 3h4c1.45 0 3 1.69 3 3.5 0 1.41-.91 2.72-2 3.25V8.59c.58-.45 1-1.27 1-2.09C10 5.22 8.98 4 8 4H4c-.98 0-2 1.22-2 2.5S3 9 4 9zm9-3h-1v1h1c1 0 2 1.22 2 2.5S13.98 12 13 12H9c-.98 0-2-1.22-2-2.5 0-.83.42-1.64 1-2.09V6.25c-1.09.53-2 1.84-2 3.25C6 11.31 7.55 13 9 13h4c1.45 0 3-1.69 3-3.5S14.5 6 13 6z"/></svg>
+        <span class="btn-text">Shorten</span>
+      </button>
+      <button onclick="toggleView()" id="view-btn">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" id="view-icon"><path d="M8 2c1.981 0 3.671.992 4.933 2.078 1.27 1.091 2.187 2.345 2.637 3.023a1.62 1.62 0 0 1 0 1.798c-.45.678-1.367 1.932-2.637 3.023C11.67 13.008 9.981 14 8 14c-1.981 0-3.671-.992-4.933-2.078C1.797 10.83.88 9.576.43 8.898a1.62 1.62 0 0 1 0-1.798c.45-.677 1.367-1.931 2.637-3.022C4.33 2.992 6.019 2 8 2ZM1.679 7.932a.12.12 0 0 0 0 .136c.411.622 1.241 1.75 2.366 2.717C5.176 11.758 6.527 12.5 8 12.5c1.473 0 2.825-.742 3.955-1.715 1.124-.967 1.954-2.096 2.366-2.717a.12.12 0 0 0 0-.136c-.412-.621-1.242-1.75-2.366-2.717C10.824 4.242 9.473 3.5 8 3.5c-1.473 0-2.825.742-3.955 1.715-1.124.967-1.954 2.096-2.366 2.717ZM8 10a2 2 0 1 1-.001-3.999A2 2 0 0 1 8 10Z"/></svg>
+        <span class="btn-text" id="view-text">View</span>
+      </button>
+      <button class="theme-toggle" onclick="toggleTheme()" title="Toggle theme" id="theme-btn">
+        <span id="theme-icon">☀️</span>
+      </button>
+    </div>
+  </header>
+
+  <main id="main">
+    <div class="pane editor-pane">
+      <div class="pane-header">
+        <span>Markdown</span>
+        <span id="char-count">0 chars</span>
+      </div>
+      <textarea id="editor" placeholder="# Hello World
+
+Start typing your markdown here...
+
+- Supports **bold**, *italic*, and `code`
+- Lists, tables, and blockquotes
+- Code blocks with syntax highlighting
+
+Share instantly via URL!"></textarea>
+    </div>
+    <div class="pane preview-pane">
+      <div class="pane-header">
+        <span>Preview</span>
+      </div>
+      <div id="preview">
+        <div class="empty-state">
+          <h2>Start typing to see preview</h2>
+          <p>Your markdown will be rendered here</p>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <div class="status-bar">
+    <div class="url-length">
+      <span>URL size:</span>
+      <div class="url-length-bar">
+        <div class="url-length-fill" id="url-fill"></div>
+      </div>
+      <span id="url-size">0 / 5,000</span>
+    </div>
+    <div>
+      <span id="compression-ratio"></span>
+    </div>
+  </div>
+
+  <!-- Share modal -->
+  <div class="modal-overlay" id="share-modal">
+    <div class="modal">
+      <h2>Share URL</h2>
+      <input type="text" id="share-url" readonly onclick="this.select()">
+      <div class="modal-actions">
+        <button onclick="closeModal()">Close</button>
+        <button class="primary" onclick="copyFromModal()">Copy</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast -->
+  <div class="toast" id="toast"></div>
+
+  <script>
+    // DOM elements
+    const editor = document.getElementById('editor');
+    const preview = document.getElementById('preview');
+    const charCount = document.getElementById('char-count');
+    const urlSize = document.getElementById('url-size');
+    const urlFill = document.getElementById('url-fill');
+    const compressionRatio = document.getElementById('compression-ratio');
+    const mainEl = document.getElementById('main');
+    const shareModal = document.getElementById('share-modal');
+    const shareUrlInput = document.getElementById('share-url');
+    const toast = document.getElementById('toast');
+    const themeIcon = document.getElementById('theme-icon');
+    const viewText = document.getElementById('view-text');
+
+    // Configure marked
+    marked.setOptions({
+      breaks: true,
+      gfm: true,
+      highlight: function(code, lang) {
+        if (lang && hljs.getLanguage(lang)) {
+          try {
+            return hljs.highlight(code, { language: lang }).value;
+          } catch (e) {}
+        }
+        return hljs.highlightAuto(code).value;
+      }
+    });
+
+    // State
+    let isViewMode = false;
+    let isDarkMode = true;
+
+    // Initialize
+    function init() {
+      // Load theme preference
+      const savedTheme = localStorage.getItem('md-share-theme');
+      if (savedTheme === 'light') {
+        toggleTheme();
+      }
+
+      // Check for content in URL
+      const hash = window.location.hash.slice(1);
+      if (hash) {
+        try {
+          const decoded = LZString.decompressFromEncodedURIComponent(hash);
+          if (decoded) {
+            editor.value = decoded;
+            updatePreview();
+            // Auto-switch to view mode when loading shared content
+            if (window.innerWidth <= 768) {
+              toggleView();
+            }
+          }
+        } catch (e) {
+          console.error('Failed to decode URL:', e);
+        }
+      }
+
+      // Set up event listeners
+      editor.addEventListener('input', debounce(onEditorChange, 150));
+      window.addEventListener('hashchange', onHashChange);
+
+      updateStats();
+    }
+
+    // Debounce helper
+    function debounce(fn, delay) {
+      let timeout;
+      return function(...args) {
+        clearTimeout(timeout);
+        timeout = setTimeout(() => fn.apply(this, args), delay);
+      };
+    }
+
+    // Editor change handler
+    function onEditorChange() {
+      updatePreview();
+      updateUrl();
+      updateStats();
+    }
+
+    // Update preview
+    function updatePreview() {
+      const content = editor.value;
+      if (!content.trim()) {
+        preview.innerHTML = `
+          <div class="empty-state">
+            <h2>Start typing to see preview</h2>
+            <p>Your markdown will be rendered here</p>
+          </div>
+        `;
+        return;
+      }
+
+      preview.innerHTML = marked.parse(content);
+
+      // Re-highlight code blocks
+      preview.querySelectorAll('pre code').forEach((block) => {
+        hljs.highlightElement(block);
+      });
+    }
+
+    // Update URL with compressed content
+    function updateUrl() {
+      const content = editor.value;
+      if (!content.trim()) {
+        history.replaceState(null, '', window.location.pathname);
+        return;
+      }
+
+      const compressed = LZString.compressToEncodedURIComponent(content);
+      history.replaceState(null, '', '#' + compressed);
+    }
+
+    // Update stats display
+    function updateStats() {
+      const content = editor.value;
+      const charLength = content.length;
+      charCount.textContent = `${charLength.toLocaleString()} chars`;
+
+      const compressed = content.trim() ? LZString.compressToEncodedURIComponent(content) : '';
+      const urlLength = compressed.length;
+      const maxLength = 5000;
+      const percentage = Math.min((urlLength / maxLength) * 100, 100);
+
+      urlSize.textContent = `${urlLength.toLocaleString()} / ${maxLength.toLocaleString()}`;
+      urlFill.style.width = percentage + '%';
+
+      urlFill.classList.remove('warning', 'danger');
+      if (percentage > 80) {
+        urlFill.classList.add('danger');
+      } else if (percentage > 50) {
+        urlFill.classList.add('warning');
+      }
+
+      if (charLength > 0) {
+        const ratio = ((1 - (urlLength / charLength)) * 100).toFixed(0);
+        compressionRatio.textContent = `${ratio}% compressed`;
+      } else {
+        compressionRatio.textContent = '';
+      }
+    }
+
+    // Hash change handler (for back/forward navigation)
+    function onHashChange() {
+      const hash = window.location.hash.slice(1);
+      if (hash) {
+        try {
+          const decoded = LZString.decompressFromEncodedURIComponent(hash);
+          if (decoded && decoded !== editor.value) {
+            editor.value = decoded;
+            updatePreview();
+            updateStats();
+          }
+        } catch (e) {
+          console.error('Failed to decode URL:', e);
+        }
+      }
+    }
+
+    // Copy URL to clipboard
+    async function copyUrl() {
+      const url = window.location.href;
+      try {
+        await navigator.clipboard.writeText(url);
+        showToast('URL copied to clipboard!', 'success');
+      } catch (e) {
+        // Fallback
+        shareUrlInput.value = url;
+        shareModal.classList.add('show');
+      }
+    }
+
+    // Shorten URL using is.gd
+    async function shortenUrl() {
+      const url = window.location.href;
+      const btn = document.getElementById('shorten-btn');
+      const originalHtml = btn.innerHTML;
+
+      btn.innerHTML = '<div class="spinner"></div> <span class="btn-text">Shortening...</span>';
+      btn.disabled = true;
+
+      try {
+        const response = await fetch(`https://is.gd/create.php?format=json&url=${encodeURIComponent(url)}`);
+        const data = await response.json();
+
+        if (data.shorturl) {
+          shareUrlInput.value = data.shorturl;
+          shareModal.classList.add('show');
+          showToast('Short URL created!', 'success');
+        } else {
+          throw new Error(data.errormessage || 'Failed to shorten URL');
+        }
+      } catch (e) {
+        console.error('Shorten error:', e);
+        showToast('Failed to shorten URL. Try copying the full URL.', 'error');
+      } finally {
+        btn.innerHTML = originalHtml;
+        btn.disabled = false;
+      }
+    }
+
+    // Copy from modal
+    async function copyFromModal() {
+      try {
+        await navigator.clipboard.writeText(shareUrlInput.value);
+        showToast('Copied!', 'success');
+        closeModal();
+      } catch (e) {
+        shareUrlInput.select();
+        document.execCommand('copy');
+        showToast('Copied!', 'success');
+        closeModal();
+      }
+    }
+
+    // Close modal
+    function closeModal() {
+      shareModal.classList.remove('show');
+    }
+
+    // Toggle view mode
+    function toggleView() {
+      isViewMode = !isViewMode;
+      mainEl.classList.toggle('view-mode', isViewMode);
+      viewText.textContent = isViewMode ? 'Edit' : 'View';
+    }
+
+    // Toggle theme
+    function toggleTheme() {
+      isDarkMode = !isDarkMode;
+      document.body.classList.toggle('light-mode', !isDarkMode);
+      themeIcon.textContent = isDarkMode ? '☀️' : '🌙';
+
+      // Update highlight.js theme
+      const hljsTheme = document.getElementById('hljs-theme');
+      hljsTheme.href = isDarkMode
+        ? 'https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/styles/github-dark.min.css'
+        : 'https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/styles/github.min.css';
+
+      localStorage.setItem('md-share-theme', isDarkMode ? 'dark' : 'light');
+    }
+
+    // Clear editor
+    function clearEditor() {
+      if (editor.value && !confirm('Clear current content?')) return;
+      editor.value = '';
+      history.replaceState(null, '', window.location.pathname);
+      updatePreview();
+      updateStats();
+      if (isViewMode) toggleView();
+    }
+
+    // Show toast notification
+    function showToast(message, type = '') {
+      toast.textContent = message;
+      toast.className = 'toast show ' + type;
+      setTimeout(() => {
+        toast.classList.remove('show');
+      }, 3000);
+    }
+
+    // Click outside modal to close
+    shareModal.addEventListener('click', (e) => {
+      if (e.target === shareModal) closeModal();
+    });
+
+    // Keyboard shortcuts
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') closeModal();
+
+      // Ctrl/Cmd + S to copy URL
+      if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+        e.preventDefault();
+        copyUrl();
+      }
+    });
+
+    // Initialize on load
+    init();
+  </script>
+</body>
+</html>
