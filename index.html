@@ -514,18 +514,7 @@
         <span>Markdown</span>
         <span id="char-count">0 chars</span>
       </div>
-      <textarea id="editor" placeholder="# md.share
-
-Write markdown here → share via URL. That's it.
-
-**How it works:**
-- Your content is compressed and stored in the URL itself
-- No accounts, no database, no server storage
-- Anyone with the link sees exactly what you see
-
-**Try it:** Type something, then click **Copy URL** or **Shorten**.
-
-Supports full markdown: **bold**, *italic*, `code`, lists, tables, and syntax-highlighted code blocks."></textarea>
+      <textarea id="editor" placeholder="Start typing markdown..."></textarea>
     </div>
     <div class="pane preview-pane">
       <div class="pane-header">
@@ -601,6 +590,40 @@ Supports full markdown: **bold**, *italic*, `code`, lists, tables, and syntax-hi
     let isViewMode = false;
     let isDarkMode = true;
 
+    // Default example content
+    const DEFAULT_CONTENT = `# md.share
+
+Write markdown here → share via URL. That's it.
+
+## How it works
+
+- Your content is **compressed** and stored in the URL itself
+- No accounts, no database, no server storage
+- Anyone with the link sees exactly what you see
+
+## Try it
+
+1. Edit this text
+2. Click **Copy URL** or **Shorten**
+3. Share the link anywhere
+
+## Features
+
+Supports full markdown including:
+
+- **Bold**, *italic*, ~~strikethrough~~
+- Lists, tables, and blockquotes
+- Syntax-highlighted code blocks:
+
+\`\`\`javascript
+function hello(name) {
+  return \`Hello, \${name}!\`;
+}
+\`\`\`
+
+> Click the logo to clear and start fresh.
+`;
+
     // Initialize
     function init() {
       // Load theme preference
@@ -624,7 +647,10 @@ Supports full markdown: **bold**, *italic*, `code`, lists, tables, and syntax-hi
           }
         } catch (e) {
           console.error('Failed to decode URL:', e);
+          loadDefaultContent();
         }
+      } else {
+        loadDefaultContent();
       }
 
       // Set up event listeners
@@ -632,6 +658,13 @@ Supports full markdown: **bold**, *italic*, `code`, lists, tables, and syntax-hi
       window.addEventListener('hashchange', onHashChange);
 
       updateStats();
+    }
+
+    // Load default example content
+    function loadDefaultContent() {
+      editor.value = DEFAULT_CONTENT;
+      updatePreview();
+      updateUrl();
     }
 
     // Debounce helper
