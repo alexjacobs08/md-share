@@ -421,20 +421,78 @@
       padding: 32px;
     }
 
+    /* Mobile tabs */
+    .mobile-tabs {
+      display: none;
+      background: var(--bg-secondary);
+      border-bottom: 1px solid var(--border-color);
+    }
+
+    .mobile-tabs button {
+      flex: 1;
+      padding: 12px 16px;
+      border: none;
+      border-radius: 0;
+      background: transparent;
+      color: var(--text-secondary);
+      font-size: 14px;
+      font-weight: 500;
+      border-bottom: 2px solid transparent;
+    }
+
+    .mobile-tabs button.active {
+      color: var(--accent);
+      border-bottom-color: var(--accent);
+      background: transparent;
+    }
+
+    .mobile-tabs button:hover {
+      background: transparent;
+    }
+
     /* Responsive */
     @media (max-width: 768px) {
+      .mobile-tabs {
+        display: flex;
+      }
+
       main {
         flex-direction: column;
       }
 
       .editor-pane {
         border-right: none;
-        border-bottom: 1px solid var(--border-color);
-        max-height: 40vh;
+        flex: 1;
+        display: none;
+      }
+
+      .editor-pane.mobile-active {
+        display: flex;
+      }
+
+      .preview-pane {
+        flex: 1;
+        display: none;
+      }
+
+      .preview-pane.mobile-active {
+        display: flex;
+      }
+
+      .pane-header {
+        display: none;
+      }
+
+      .view-mode .editor-pane {
+        display: none !important;
       }
 
       .view-mode .preview-pane {
-        max-height: none;
+        display: flex !important;
+      }
+
+      .view-mode .mobile-tabs {
+        display: none;
       }
 
       header {
@@ -442,6 +500,33 @@
       }
 
       .header-actions button span.btn-text {
+        display: none;
+      }
+
+      .status-bar {
+        padding: 6px 12px;
+        font-size: 11px;
+      }
+
+      .url-length-bar {
+        width: 60px;
+      }
+
+      #preview {
+        padding: 16px;
+      }
+    }
+
+    @media (max-width: 480px) {
+      .logo {
+        font-size: 1.1rem;
+      }
+
+      .header-actions button {
+        padding: 8px 10px;
+      }
+
+      .compression-info {
         display: none;
       }
     }
@@ -507,6 +592,11 @@
       </button>
     </div>
   </header>
+
+  <div class="mobile-tabs" id="mobile-tabs">
+    <button class="active" onclick="switchMobileTab('editor')" id="tab-editor">Edit</button>
+    <button onclick="switchMobileTab('preview')" id="tab-preview">Preview</button>
+  </div>
 
   <main id="main">
     <div class="pane editor-pane">
@@ -640,9 +730,9 @@ function hello(name) {
           if (decoded) {
             editor.value = decoded;
             updatePreview();
-            // Auto-switch to view mode when loading shared content
+            // Auto-switch to preview tab on mobile when loading shared content
             if (window.innerWidth <= 768) {
-              toggleView();
+              switchMobileTab('preview');
             }
           }
         } catch (e) {
@@ -657,7 +747,40 @@ function hello(name) {
       editor.addEventListener('input', debounce(onEditorChange, 150));
       window.addEventListener('hashchange', onHashChange);
 
+      // Initialize mobile tabs
+      initMobileTabs();
+
       updateStats();
+    }
+
+    // Initialize mobile tab state
+    function initMobileTabs() {
+      const editorPane = document.querySelector('.editor-pane');
+      const previewPane = document.querySelector('.preview-pane');
+
+      // Default to editor tab on mobile
+      editorPane.classList.add('mobile-active');
+      previewPane.classList.remove('mobile-active');
+    }
+
+    // Switch mobile tabs
+    function switchMobileTab(tab) {
+      const editorPane = document.querySelector('.editor-pane');
+      const previewPane = document.querySelector('.preview-pane');
+      const tabEditor = document.getElementById('tab-editor');
+      const tabPreview = document.getElementById('tab-preview');
+
+      if (tab === 'editor') {
+        editorPane.classList.add('mobile-active');
+        previewPane.classList.remove('mobile-active');
+        tabEditor.classList.add('active');
+        tabPreview.classList.remove('active');
+      } else {
+        editorPane.classList.remove('mobile-active');
+        previewPane.classList.add('mobile-active');
+        tabEditor.classList.remove('active');
+        tabPreview.classList.add('active');
+      }
     }
 
     // Load default example content
@@ -853,6 +976,10 @@ function hello(name) {
       updatePreview();
       updateStats();
       if (isViewMode) toggleView();
+      // Switch to editor tab on mobile
+      if (window.innerWidth <= 768) {
+        switchMobileTab('editor');
+      }
     }
 
     // Show toast notification
