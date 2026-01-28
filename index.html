@@ -722,6 +722,9 @@ function hello(name) {
         toggleTheme();
       }
 
+      // Initialize mobile tabs first (sets default state)
+      initMobileTabs();
+
       // Check for content in URL
       const hash = window.location.hash.slice(1);
       if (hash) {
@@ -746,9 +749,6 @@ function hello(name) {
       // Set up event listeners
       editor.addEventListener('input', debounce(onEditorChange, 150));
       window.addEventListener('hashchange', onHashChange);
-
-      // Initialize mobile tabs
-      initMobileTabs();
 
       updateStats();
     }
