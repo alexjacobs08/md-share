@@ -148,10 +148,48 @@
       display: flex;
       justify-content: space-between;
       align-items: center;
+      cursor: pointer;
+      user-select: none;
+      transition: background 0.15s ease;
+    }
+
+    .pane-header:hover {
+      background: var(--bg-tertiary);
+    }
+
+    .pane-header.active {
+      color: var(--accent);
+      border-bottom-color: var(--accent);
+    }
+
+    /* Collapsed pane states */
+    .pane.collapsed {
+      display: none;
+    }
+
+    .pane.expanded {
+      flex: 1;
+    }
+
+    .pane.expanded .pane-header .collapse-hint {
+      display: inline;
+    }
+
+    .collapse-hint {
+      display: none;
+      font-size: 10px;
+      font-weight: 400;
+      text-transform: none;
+      letter-spacing: normal;
+      opacity: 0.7;
     }
 
     .editor-pane {
       border-right: 1px solid var(--border-color);
+    }
+
+    .editor-pane.expanded {
+      border-right: none;
     }
 
     /* Editor */
@@ -599,16 +637,16 @@
   </div>
 
   <main id="main">
-    <div class="pane editor-pane">
-      <div class="pane-header">
-        <span>Markdown</span>
+    <div class="pane editor-pane" id="editor-pane">
+      <div class="pane-header" onclick="togglePane('editor')">
+        <span>Markdown <span class="collapse-hint">(click to split)</span></span>
         <span id="char-count">0 chars</span>
       </div>
       <textarea id="editor" placeholder="Start typing markdown..."></textarea>
     </div>
-    <div class="pane preview-pane">
-      <div class="pane-header">
-        <span>Preview</span>
+    <div class="pane preview-pane" id="preview-pane">
+      <div class="pane-header" onclick="togglePane('preview')">
+        <span>Preview <span class="collapse-hint">(click to split)</span></span>
       </div>
       <div id="preview">
         <div class="empty-state">
@@ -783,6 +821,46 @@ function hello(name) {
       }
     }
 
+    // Toggle pane (desktop) - expand one pane or return to split view
+    let expandedPane = null;
+
+    function togglePane(pane) {
+      // Only apply on desktop
+      if (window.innerWidth <= 768) return;
+
+      const editorPane = document.getElementById('editor-pane');
+      const previewPane = document.getElementById('preview-pane');
+      const editorHeader = editorPane.querySelector('.pane-header');
+      const previewHeader = previewPane.querySelector('.pane-header');
+
+      if (expandedPane === pane) {
+        // Clicking the same pane again - return to split view
+        editorPane.classList.remove('collapsed', 'expanded');
+        previewPane.classList.remove('collapsed', 'expanded');
+        editorHeader.classList.remove('active');
+        previewHeader.classList.remove('active');
+        expandedPane = null;
+      } else {
+        // Expand the clicked pane, collapse the other
+        if (pane === 'editor') {
+          editorPane.classList.remove('collapsed');
+          editorPane.classList.add('expanded');
+          previewPane.classList.add('collapsed');
+          previewPane.classList.remove('expanded');
+          editorHeader.classList.add('active');
+          previewHeader.classList.remove('active');
+        } else {
+          previewPane.classList.remove('collapsed');
+          previewPane.classList.add('expanded');
+          editorPane.classList.add('collapsed');
+          editorPane.classList.remove('expanded');
+          previewHeader.classList.add('active');
+          editorHeader.classList.remove('active');
+        }
+        expandedPane = pane;
+      }
+    }
+
     // Load default example content
     function loadDefaultContent() {
       editor.value = DEFAULT_CONTENT;
@@ -951,6 +1029,17 @@ function hello(name) {
       isViewMode = !isViewMode;
       mainEl.classList.toggle('view-mode', isViewMode);
       viewText.textContent = isViewMode ? 'Edit' : 'View';
+
+      // Reset expanded pane state when toggling view mode
+      if (expandedPane) {
+        const editorPane = document.getElementById('editor-pane');
+        const previewPane = document.getElementById('preview-pane');
+        editorPane.classList.remove('collapsed', 'expanded');
+        previewPane.classList.remove('collapsed', 'expanded');
+        editorPane.querySelector('.pane-header').classList.remove('active');
+        previewPane.querySelector('.pane-header').classList.remove('active');
+        expandedPane = null;
+      }
     }
 
     // Toggle theme
